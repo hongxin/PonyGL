@@ -1,0 +1,334 @@
+<html>
+
+<head>
+<title>Learning WebGL &mdash; lesson 3</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="webgl-utils.js"></script>
+
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+
+    varying vec4 vColor;
+
+    void main(void) {
+        gl_FragColor = vColor;
+    }
+</script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec4 aVertexColor;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+    varying vec4 vColor;
+
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        vColor = aVertexColor;
+    }
+</script>
+
+
+<script type="text/javascript">
+
+	// Pony is a lightweight wrapper of WebGL canvas functions
+	var Pony = {
+		createNew: function(canvasName){
+			var pony = {};
+			
+			pony.initGL = function (canvas) {
+				try {
+					pony.gl = canvas.getContext("experimental-webgl");
+					pony.gl.viewportWidth  = canvas.width;
+					pony.gl.viewportHeight = canvas.height;
+				} catch (e) {
+				}
+			
+				if (!pony.gl) {
+					alert("Could not initialise WebGL, sorry :-(");
+				}
+			};
+			
+			function getShader(gl, id) {
+				var shaderScript = document.getElementById(id);
+				if (!shaderScript) {
+					return null;
+				}
+
+				var str = "";
+				var k = shaderScript.firstChild;
+				while (k) {
+					if (k.nodeType == 3) {
+						str += k.textContent;
+					}
+					k = k.nextSibling;
+				}
+
+				var shader;
+				if (shaderScript.type == "x-shader/x-fragment") {
+					shader = gl.createShader(gl.FRAGMENT_SHADER);
+				} else if (shaderScript.type == "x-shader/x-vertex") {
+					shader = gl.createShader(gl.VERTEX_SHADER);
+				} else {
+					return null;
+				}
+
+				gl.shaderSource(shader, str);
+				gl.compileShader(shader);
+
+				if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+					alert(gl.getShaderInfoLog(shader));
+					return null;
+				}
+
+				return shader;
+			}                  
+			
+			pony.initShaders = function (gl) {
+				var shaderProgram;
+				
+				var fragmentShader = getShader(gl, "shader-fs");
+				var vertexShader = getShader(gl, "shader-vs");
+
+				shaderProgram = gl.createProgram();
+				gl.attachShader(shaderProgram, vertexShader);
+				gl.attachShader(shaderProgram, fragmentShader);
+				gl.linkProgram(shaderProgram);
+
+				if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+					alert("Could not initialise shaders");
+				}
+
+				gl.useProgram(shaderProgram);
+
+				shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+				gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+				shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+				gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+
+				shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+				shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+				
+				return shaderProgram;
+			}
+			
+			pony.mvMatrix = mat4.create();
+			pony.mvMatrixStack = [];
+			pony.pMatrix = mat4.create();
+			
+			pony.mvPushMatrix = function () {
+				var copy = mat4.create();
+				mat4.set(pony.mvMatrix, copy);
+				pony.mvMatrixStack.push(copy);
+			};
+
+			pony.mvPopMatrix = function () {
+				if (pony.mvMatrixStack.length == 0) {
+					throw "Invalid popMatrix!";
+				}
+				pony.mvMatrix = pony.mvMatrixStack.pop();
+			};
+			
+			pony.setMatrixUniforms = function () {
+				var gl = pony.gl;
+				var shaderProgram = pony.shaderProgram;
+				gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pony.pMatrix);
+				gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, pony.mvMatrix);
+			};
+
+			function degToRad(degrees) {
+				return degrees * Math.PI / 180;
+			}
+			
+
+			pony.initBuffers = function (gl, shaderProgram) {
+				var triangleVertexPositionBuffer;
+				var triangleVertexColorBuffer;
+				var squareVertexPositionBuffer;
+				var squareVertexColorBuffer;
+			
+				triangleVertexPositionBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+				var vertices = [
+					 0.0,  1.0,  0.0,
+					-1.0, -1.0,  0.0,
+					 1.0, -1.0,  0.0
+				];
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+				triangleVertexPositionBuffer.itemSize = 3;
+				triangleVertexPositionBuffer.numItems = 3;
+
+				triangleVertexColorBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
+				var colors = [
+					1.0, 0.0, 0.0, 1.0,
+					0.0, 1.0, 0.0, 1.0,
+					0.0, 0.0, 1.0, 1.0,
+				];
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+				triangleVertexColorBuffer.itemSize = 4;
+				triangleVertexColorBuffer.numItems = 3;
+
+
+				squareVertexPositionBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+				vertices = [
+					 1.0,  1.0,  0.0,
+					-1.0,  1.0,  0.0,
+					 1.0, -1.0,  0.0,
+					-1.0, -1.0,  0.0
+					];
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+				squareVertexPositionBuffer.itemSize = 3;
+				squareVertexPositionBuffer.numItems = 4;
+
+				squareVertexColorBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+				colors = []
+				for (var i=0; i < 4; i++) {
+					colors = colors.concat([0.5, 0.5, 1.0, 1.0]);
+				}
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
+				squareVertexColorBuffer.itemSize = 4;
+				squareVertexColorBuffer.numItems = 4;
+				
+				pony.triangleVertexPositionBuffer = triangleVertexPositionBuffer;
+				pony.triangleVertexColorBuffer    = triangleVertexColorBuffer;
+				pony.squareVertexPositionBuffer   = squareVertexPositionBuffer;
+				pony.squareVertexColorBuffer      = squareVertexColorBuffer;
+			};
+			
+			pony.rTri = 0;
+			pony.rSquare = 0;
+
+			pony.drawScene = function () {
+				var gl = pony.gl;
+				var shaderProgram = pony.shaderProgram;
+				
+				var triangleVertexPositionBuffer = pony.triangleVertexPositionBuffer;
+				var triangleVertexColorBuffer    = pony.triangleVertexColorBuffer;
+				var squareVertexPositionBuffer   = pony.squareVertexPositionBuffer;
+				var squareVertexColorBuffer      = pony.squareVertexColorBuffer;
+				
+				// var mvMatrix = pony.mvMatrix;
+				// var mvMatrixStack = pony.mvMatrixStack;
+				// var pMatrix = pony.pMatrix;
+				
+				gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+				gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+				mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pony.pMatrix);
+				mat4.identity(pony.mvMatrix);
+				mat4.translate(pony.mvMatrix, [-1.5, 0.0, -7.0]);
+
+				pony.mvPushMatrix();
+				mat4.rotate(pony.mvMatrix, degToRad( pony.rTri), [0, 1, 0]);
+
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+				gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexColorBuffer);
+				gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, triangleVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+				pony.setMatrixUniforms();
+				gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+				pony.mvPopMatrix();
+
+
+				mat4.translate(pony.mvMatrix, [3.0, 0.0, 0.0]);
+
+				pony.mvPushMatrix();
+				mat4.rotate(pony.mvMatrix, degToRad(pony.rSquare), [1, 0, 0]);
+
+				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+				gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer);
+				gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, squareVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+				pony.setMatrixUniforms();
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+
+				pony.mvPopMatrix();
+			}
+
+			pony.canvas = document.getElementById(canvasName); 
+			pony.initGL(pony.canvas);
+			pony.shaderProgram = pony.initShaders(pony.gl);
+			pony.initBuffers(pony.gl, pony.shaderProgram);
+			
+			pony.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+			pony.gl.enable(pony.gl.DEPTH_TEST);
+
+			return pony;
+		}
+	};
+	
+	var pony0, pony1;
+	var pony2, pony3;
+	
+    var lastTime = 0;
+    function animate() {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+
+            pony0.rTri += (90 * elapsed) / 1000.0;
+            pony0.rSquare += (75 * elapsed) / 1000.0;
+			
+			pony1.rTri += (90 * elapsed) / 1000.0;
+            pony1.rSquare += (75 * elapsed) / 1000.0;
+			
+			pony2.rTri += (90 * elapsed) / 1000.0;
+            pony2.rSquare += (75 * elapsed) / 1000.0;
+			
+			pony3.rTri += (90 * elapsed) / 1000.0;
+            pony3.rSquare += (75 * elapsed) / 1000.0;
+        }
+        lastTime = timeNow;
+    }
+
+    function tick() {
+        requestAnimFrame(tick);
+        // drawScene();
+		
+		pony0.drawScene();
+		pony1.drawScene();
+		pony2.drawScene();
+		pony3.drawScene();
+        animate();
+    }
+
+
+    function webGLStart() {
+
+		pony0 = Pony.createNew("pony-canvas-0");
+		pony1 = Pony.createNew("pony-canvas-1");
+		pony2 = Pony.createNew("pony-canvas-2");
+		pony3 = Pony.createNew("pony-canvas-3");
+		
+        tick();
+    }
+
+</script>
+
+</head>
+
+
+<body onload="webGLStart();">
+
+    <canvas id="pony-canvas-0" style="border: none;" width="500" height="500"></canvas>
+	<canvas id="pony-canvas-1" style="border: none;" width="500" height="500"></canvas>
+	<canvas id="pony-canvas-2" style="border: none;" width="500" height="500"></canvas>
+	<canvas id="pony-canvas-3" style="border: none;" width="500" height="500"></canvas>
+
+    <br/>
+  
+</body>
+
+</html>
