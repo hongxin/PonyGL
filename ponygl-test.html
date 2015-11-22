@@ -1,7 +1,7 @@
 <html>
 
 <head>
-<title>Learning WebGL &mdash; lesson 3</title>
+<title>PONY: WebGL Testing</title>
 <meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
 
 <script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
@@ -53,7 +53,7 @@
 				}
 			};
 			
-			function getShader(gl, id) {
+			pony.getShader = function (gl, id) {
 				var shaderScript = document.getElementById(id);
 				if (!shaderScript) {
 					return null;
@@ -91,8 +91,8 @@
 			pony.initShaders = function (gl) {
 				var shaderProgram;
 				
-				var fragmentShader = getShader(gl, "shader-fs");
-				var vertexShader = getShader(gl, "shader-vs");
+				var fragmentShader = pony.getShader(gl, "shader-fs");
+				var vertexShader = pony.getShader(gl, "shader-vs");
 
 				shaderProgram = gl.createProgram();
 				gl.attachShader(shaderProgram, vertexShader);
@@ -141,11 +141,10 @@
 				gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, pony.mvMatrix);
 			};
 
-			function degToRad(degrees) {
+			pony.degToRad = function (degrees) {
 				return degrees * Math.PI / 180;
 			}
 			
-
 			pony.initBuffers = function (gl, shaderProgram) {
 				var triangleVertexPositionBuffer;
 				var triangleVertexColorBuffer;
@@ -205,6 +204,10 @@
 			
 			pony.rTri = 0;
 			pony.rSquare = 0;
+			
+			pony.setView = function () {
+				mat4.perspective(45, pony.gl.viewportWidth / pony.gl.viewportHeight, 0.1, 100.0, pony.pMatrix);
+			};
 
 			pony.drawScene = function () {
 				var gl = pony.gl;
@@ -215,19 +218,17 @@
 				var squareVertexPositionBuffer   = pony.squareVertexPositionBuffer;
 				var squareVertexColorBuffer      = pony.squareVertexColorBuffer;
 				
-				// var mvMatrix = pony.mvMatrix;
-				// var mvMatrixStack = pony.mvMatrixStack;
-				// var pMatrix = pony.pMatrix;
-				
 				gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
 				gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-				mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pony.pMatrix);
+				// mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pony.pMatrix);
+				pony.setView();
+				
 				mat4.identity(pony.mvMatrix);
 				mat4.translate(pony.mvMatrix, [-1.5, 0.0, -7.0]);
 
 				pony.mvPushMatrix();
-				mat4.rotate(pony.mvMatrix, degToRad( pony.rTri), [0, 1, 0]);
+				mat4.rotate(pony.mvMatrix, pony.degToRad( pony.rTri), [0, 1, 0]);
 
 				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
 				gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
@@ -243,7 +244,7 @@
 				mat4.translate(pony.mvMatrix, [3.0, 0.0, 0.0]);
 
 				pony.mvPushMatrix();
-				mat4.rotate(pony.mvMatrix, degToRad(pony.rSquare), [1, 0, 0]);
+				mat4.rotate(pony.mvMatrix, pony.degToRad(pony.rSquare), [1, 0, 0]);
 
 				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
 				gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
@@ -304,13 +305,76 @@
         animate();
     }
 
+	var Rainbow = {
+		createNew : function() {
+			var rainbow = Pony.createNew();
+			
+			/*
+			rainbow.setView = function (){
+				mat4.frustum(0, 50, 0, 50, 0.1, 100, rainbow.pMatrix);
+			};
+			*/
+			
+			return rainbow;
+		}
+	};
 
     function webGLStart() {
 
+		//*
 		pony0 = Pony.createNew("pony-canvas-0");
 		pony1 = Pony.createNew("pony-canvas-1");
 		pony2 = Pony.createNew("pony-canvas-2");
 		pony3 = Pony.createNew("pony-canvas-3");
+		//*/
+		
+		pony0.setView =  function (){
+				// mat4.frustum(-50, 0, -50, 0, 0.1, 100, pony1.pMatrix);
+				var fovy   = 45.0;
+				var near   = 0.1;
+				var far    = 100.0;
+				var aspect = 1.0;
+				var top = near * Math.tan(fovy * Math.PI / 360.0);
+				var right = top * aspect;
+
+    			mat4.frustum(-right, 0, 0, top, near, far, pony0.pMatrix);
+			};
+		
+		pony1.setView =  function (){
+				// mat4.frustum(-50, 0, -50, 0, 0.1, 100, pony1.pMatrix);
+				var fovy   = 45.0;
+				var near   = 0.1;
+				var far    = 100.0;
+				var aspect = 1.0;
+				var top = near * Math.tan(fovy * Math.PI / 360.0);
+				var right = top * aspect;
+
+    			mat4.frustum(0, right, 0, top, near, far, pony1.pMatrix);
+			};
+			
+		pony2.setView =  function (){
+				// mat4.frustum(-50, 0, -50, 0, 0.1, 100, pony1.pMatrix);
+				var fovy   = 45.0;
+				var near   = 0.1;
+				var far    = 100.0;
+				var aspect = 1.0;
+				var top = near * Math.tan(fovy * Math.PI / 360.0);
+				var right = top * aspect;
+
+    			mat4.frustum(-right, 0, -top, 0, near, far, pony2.pMatrix);
+			};
+			
+		pony3.setView =  function (){
+				// mat4.frustum(-50, 0, -50, 0, 0.1, 100, pony1.pMatrix);
+				var fovy   = 45.0;
+				var near   = 0.1;
+				var far    = 100.0;
+				var aspect = 1.0;
+				var top = near * Math.tan(fovy * Math.PI / 360.0);
+				var right = top * aspect;
+
+    			mat4.frustum(0, right, -top, 0, near, far, pony3.pMatrix);
+			};
 		
         tick();
     }
@@ -321,13 +385,16 @@
 
 
 <body onload="webGLStart();">
-
-    <canvas id="pony-canvas-0" style="border: none;" width="500" height="500"></canvas>
-	<canvas id="pony-canvas-1" style="border: none;" width="500" height="500"></canvas>
-	<canvas id="pony-canvas-2" style="border: none;" width="500" height="500"></canvas>
-	<canvas id="pony-canvas-3" style="border: none;" width="500" height="500"></canvas>
-
-    <br/>
+    
+	<div align="center">    
+		<br/>
+		<canvas id="pony-canvas-0" style="border: none;" width="300" height="300"></canvas>
+		<canvas id="pony-canvas-1" style="border: none;" width="300" height="300"></canvas>
+		<br/>
+		<canvas id="pony-canvas-2" style="border: none;" width="300" height="300"></canvas>
+		<canvas id="pony-canvas-3" style="border: none;" width="300" height="300"></canvas>
+		<br/>
+    </div>
   
 </body>
 
